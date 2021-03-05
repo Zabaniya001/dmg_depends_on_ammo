@@ -1,0 +1,113 @@
+"Games"
+{
+	"tf"
+	{
+		"Functions"
+		{
+			"FX_FireBullets()"
+			{
+				"signature"		"FX_FireBullets()"
+				"callconv"		"cdecl"
+				"return"		"void"
+				"this"			"ignore"
+				
+				"arguments"
+				{
+					"pWpn"
+					{
+						"type"	"cbaseentity"
+					}
+					"iPlayer"
+					{
+						"type"	"int"
+					}
+					"vecOrigin"
+					{
+						"type"	"vectorptr"
+					}
+					"vecAngles"
+					{
+						"type"	"vectorptr"
+					}
+					"iWeapon"
+					{
+						"type"	"int"
+					}
+					"iMode"
+					{
+						"type"	"int"
+					}
+					"iSeed"
+					{
+						"type"	"int"
+					}
+					"flSpread"
+					{
+						"type"	"float"
+					}
+					"flDamage"
+					{
+						"type"	"float"
+					}
+					"bCritical"
+					{
+						"type"	"bool"
+					}
+				}
+			}
+			
+			"CTFPlayer::RemoveAmmo()"
+			{
+				"offset"		"CTFPlayer::RemoveAmmo()"
+				"hooktype"		"entity"
+				"return"		"bool"
+				"this"			"entity"
+				"arguments"
+				{
+					"count"
+					{
+						"type"	"int"
+					}
+					"ammo_type"
+					{
+						"type"	"int"
+					}
+				}
+			}
+			
+			"CTFWeaponBase::IncrementAmmo()"
+			{
+				"signature"		"CTFWeaponBase::IncrementAmmo()"
+				"callconv"		"thiscall"
+				"return"		"void"
+				"this"			"entity"
+			}
+		}
+		"Signatures"
+		{
+			"FX_FireBullets()"
+			{
+				"library"		"server"
+				"linux"			"@_Z14FX_FireBulletsP13CTFWeaponBaseiRK6VectorRK6QAngleiiiffb"
+				"windows"		"\x55\x8B\xEC\x81\xEC\x9C\x00\x00\x00\x53\x8B\x5D\x18"				
+			}
+			
+			"CTFWeaponBase::IncrementAmmo()"
+			{
+				// called in xref "Weapon_DumpsterRocket.Reload"
+				"library"	"server"
+				"linux"		"@_ZN13CTFWeaponBase13IncrementAmmoEv"
+				"windows"	"\x55\x8B\xEC\x51\x56\x57\x6A\x00\x68\x2A\x2A\x2A\x2A\x68\x2A\x2A\x2A\x2A\x6A\x00\x8B\xF1"
+			}
+		}
+		
+		"Offsets"
+		{
+			"CTFPlayer::RemoveAmmo()"
+			{
+				"windows"	"257"
+				"linux"		"257"
+			}
+		}
+	}
+}
