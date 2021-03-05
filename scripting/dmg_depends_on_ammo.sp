@@ -23,7 +23,7 @@
 #define PLUGIN_NAME         "Custom Attribute - Damage Depends On Ammo"
 #define PLUGIN_AUTHOR       "Zabaniya001"
 #define PLUGIN_DESCRIPTION  "Custom attribute that uses nosoop's framework. The more ammo you have, the more damage you do. Only sniper rifles."
-#define PLUGIN_VERSION      "0.1.0"
+#define PLUGIN_VERSION      "1.1.0"
 #define PLUGIN_URL          "https://alliedmods.net"
 
 #define GAMECONF "tf2.suza"
@@ -59,6 +59,9 @@ enum struct Attribute
         this.bResetOnMiss = !!ReadIntVar(sAttribute, "reset_on_miss", 0);
     }
 }
+
+int iNumShotsThisTick[36];
+int iNumHitsThisTick[36];
 
 bool bHasAttribute[2048];
 
@@ -101,6 +104,14 @@ public void OnClientPutInServer(int iClient)
     return;
 }
 
+public void OnClientDisconnect(int client)
+{
+    iNumShotsThisTick[client]   =   0;
+    iNumHitsThisTick[client]    =   0;
+
+    return;
+}
+
 stock Handle RegDetour(Handle gameconf, const char[] name, DHookCallback callback, DetourMode mode = DetourMode_Post)
 {
     Handle hDetour = DHookCreateFromConf(gameconf, name);
@@ -117,6 +128,57 @@ stock Handle RegDetour(Handle gameconf, const char[] name, DHookCallback callbac
 // ||                                EVENTS                                    ||
 // ||==========================================================================||
 
+public void OnClientThink(int iClient)
+{
+    if(!IsClientInGame(iClient))
+        return;
+
+    int iWeapon = GetActiveWeapon(iClient);
+
+    if(!IsValidEntity(iWeapon) || !bHasAttribute[iWeapon])
+        return;
+
+    if(iNumShotsThisTick[iClient] != iNumHitsThisTick[iClient])
+    {
+        TF2_SetWeaponClip(iWeapon, 1);
+
+        if(HasEntProp(iClient, Prop_Send, "m_iDecapitations"))
+            SetEntProp(iClient, Prop_Send, "m_iDecapitations", 0);
+    }
+
+    iNumShotsThisTick[iClient]  =   0;
+    iNumHitsThisTick[iClient]   =   0;
+
+    return;
+}
+/*
+public void OnGameFrame()
+{
+    for(int iClient = 1; iClient <= MaxClients; iClient++)
+    {
+        if(!IsClientInGame(iClient))
+            continue;
+
+        int iWeapon = GetActiveWeapon(iClient);
+
+        if(!IsValidEntity(iWeapon) || !bHasAttribute[iWeapon])
+            continue;
+
+        if(iNumShotsThisTick[iClient] != iNumHitsThisTick[iClient])
+        {
+            TF2_SetWeaponClip(iWeapon, 1);
+
+            if(HasEntProp(iClient, Prop_Send, "m_iDecapitations"))
+                SetEntProp(iClient, Prop_Send, "m_iDecapitations", 0);
+        }
+
+        iNumShotsThisTick[iClient]  =   0;
+        iNumHitsThisTick[iClient]   =   0;
+    }
+
+    return;
+}
+*/
 public void OnMapEnd()
 {
     WeaponHash.Clear();
@@ -138,6 +200,8 @@ public void Event_OnPostInventoryApplication(Event event, const char[] name, boo
     if(!IsValidClient(iClient))
         return;
 
+    SDKUnhook(iClient, SDKHook_PostThink, OnClientThink);
+
     for(eTF2LoadoutSlot eSlot = TF2LoadoutSlot_Primary; eSlot < TF2LoadoutSlot_Misc3; eSlot++)
     {
         int iWeapon = TF2_GetPlayerLoadoutSlot(iClient, eSlot);
@@ -148,6 +212,8 @@ public void Event_OnPostInventoryApplication(Event event, const char[] name, boo
         char sBuffer[100]; // We don't really care about it, we just want to see if the attribute exists
         if(!TF2CustAttr_GetString(iWeapon, "ammo dependent weapon", sBuffer, sizeof(sBuffer)))
             continue;
+
+        SDKHook(iClient, SDKHook_PostThink, OnClientThink);
 
         HookWeapon(iClient, iWeapon);
     }
@@ -184,6 +250,8 @@ public Action OnTakeDamageAlive(int victim, int &attacker, int &inflictor, float
 
     damage *= 1.0 + CalculateDamage(weapon);
 
+    iNumHitsThisTick[attacker]++;
+
     return Plugin_Changed;
 }
 
@@ -208,6 +276,7 @@ public void OnTakeDamageAlivePost(int victim, int attacker, int inflictor, float
 }
 
 // void FX_FireBullets( CTFWeaponBase *pWpn, int iPlayer, const Vector &vecOrigin, const QAngle &vecAngles, int iWeapon, int iMode, int iSeed, float flSpread, float flDamage /* = -1.0f */, bool bCritical /* = false*/ )
+
 public MRESReturn FX_FireBullets(DHookParam hParams)
 {
     int iWeapon = DHookGetParam(hParams, 1); // I'm sorry methodmap Gods, but the server I uploaded it on doesn't like it so i have to do this :pepega:
@@ -215,20 +284,18 @@ public MRESReturn FX_FireBullets(DHookParam hParams)
 
     if(!IsValidEntity(iWeapon) || !bHasAttribute[iWeapon])
         return MRES_Ignored;
-    
-    int iTarget = GetClientAimTarget(iPlayer);
 
     TF2_GiveWeaponClip(iWeapon, 1);
 
+    iNumShotsThisTick[iPlayer]++;
+
+    int iTarget = GetClientAimTarget(iPlayer);
+
     if(!IsValidClient(iTarget))
-    {
-        TF2_SetWeaponClip(iWeapon, 2);
-
-        if(HasEntProp(iPlayer, Prop_Send, "m_iDecapitations"))
-            SetEntProp(iPlayer, Prop_Send, "m_iDecapitations", 0);
-
         return MRES_Ignored;
-    }
+
+    if(TF2_GetClientTeam(iPlayer) == TF2_GetClientTeam(iTarget))
+        iNumShotsThisTick[iPlayer] = 0;
 
     return MRES_Ignored;
 }
@@ -256,6 +323,8 @@ public void HookWeapon(int iClient, int iWeapon)
 
         WeaponHash.SetArray(iDefinitionIndex, attribute, sizeof(attribute));
     }
+
+    SDKHook(iClient, SDKHook_PostThink, OnClientThink);
 
     bHasAttribute[iWeapon] = true;
 
@@ -329,4 +398,9 @@ stock void TF2_GiveWeaponClip(int iWeapon, int iAmount)
 stock int TF2_GetWeaponClip(int weapon)
 {
     return GetEntProp(weapon, Prop_Data, "m_iClip1");
+}
+
+stock int GetActiveWeapon(int iClient)
+{
+    return GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
 }
